@@ -1,0 +1,670 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍬 Шахматы с БРАТАНОМ (DeepSeek + Stockfish)</title>
+    
+    <!-- Библиотеки -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #2b2b2b 0%, #1a1a1a 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #e0e0e0;
+        }
+        
+        .game-container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(50, 50, 50, 0.9);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+        }
+        
+        h1 {
+            text-align: center;
+            margin: 0 0 20px 0;
+            font-size: 32px;
+            color: #ffd966;
+            text-shadow: 2px 2px 4px #000;
+        }
+        
+        h1 span {
+            color: #6c9ebf;
+        }
+        
+        .board-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        #board {
+            width: 560px;
+            height: 560px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        
+        .status-panel {
+            background: #3a3a3a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #5a5a5a;
+        }
+        
+        .turn-indicator {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .turn-badge {
+            background: #4a6fa5;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .turn-badge.black-turn {
+            background: #2d2d2d;
+            color: #e0e0e0;
+            border: 1px solid #888;
+        }
+        
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;
+        }
+        
+        .mode-btn {
+            background: #4a4a4a;
+            color: #ddd;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn.active {
+            background: #ffd966;
+            color: #2d2d2d;
+        }
+        
+        .commentary-box {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 60px;
+            border-left: 4px solid #ffd966;
+            font-style: italic;
+            color: #ccc;
+            margin: 15px 0;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #4a6fa5;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid #6c9ebf;
+        }
+        
+        button:hover {
+            background: #5a7fb5;
+            transform: scale(1.02);
+        }
+        
+        button.secondary {
+            background: #5a5a5a;
+            border-color: #888;
+        }
+        
+        .api-key-input {
+            margin-top: 15px;
+            padding: 15px;
+            background: #333;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .api-key-input input {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 15px;
+            border-radius: 30px;
+            border: none;
+            background: #4a4a4a;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .api-key-input input::placeholder {
+            color: #aaa;
+        }
+        
+        .api-key-input button {
+            padding: 12px 25px;
+        }
+        
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .thinking {
+            color: #ffd966;
+            font-weight: bold;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>♟️ БРАТАН <span>CHESS</span> 🍬</h1>
+        
+        <div class="board-container">
+            <div id="board"></div>
+        </div>
+        
+        <div class="status-panel">
+            <div class="turn-indicator">
+                <div class="turn-badge" id="turnDisplay">Белые ходят</div>
+                <div class="mode-selector">
+                    <button class="mode-btn" id="modeSoulful" data-mode="soulful">🍬 Душевный</button>
+                    <button class="mode-btn" id="modeHonest" data-mode="honest">⚡ Честный</button>
+                </div>
+            </div>
+            
+            <div class="commentary-box" id="commentary">
+                Привет, БРАТАН! Настрой API-ключ DeepSeek и начинаем игру.
+            </div>
+            
+            <div class="api-key-input" id="apiKeySection">
+                <input type="text" id="apiKeyInput" placeholder="Введи DeepSeek API ключ (sk-...)" />
+                <button id="saveApiKey">Сохранить ключ</button>
+            </div>
+            
+            <div class="controls">
+                <button id="newGameBtn">🔄 Новая игра</button>
+                <button id="flipBoardBtn" class="secondary">🔄 Перевернуть доску</button>
+            </div>
+        </div>
+        
+        <div class="footer">
+            DeepSeek + Stockfish = ❤️ | Тыкай мышкой фигуры, я отвечаю
+        </div>
+    </div>
+    
+    <script>
+        // ==================== НАСТРОЙКИ ====================
+        const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+        const STOCKFISH_PATH = 'https://cdn.jsdelivr.net/npm/stockfish.wasm@0.10.0/stockfish.js';
+        
+        // Глобальные переменные
+        let board = null;
+        let game = new Chess();
+        let currentMode = 'soulful'; // 'soulful' или 'honest'
+        let stockfishEngine = null;
+        let isAiThinking = false;
+        let apiKey = localStorage.getItem('deepseek_api_key') || '';
+        
+        // DOM элементы
+        const turnDisplay = document.getElementById('turnDisplay');
+        const commentaryEl = document.getElementById('commentary');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const saveApiKeyBtn = document.getElementById('saveApiKey');
+        
+        // ==================== ИНИЦИАЛИЗАЦИЯ STOCKFISH ====================
+        function initStockfish() {
+            return new Promise((resolve) => {
+                // Используем stockfish.js (WebAssembly версия)
+                const script = document.createElement('script');
+                script.src = STOCKFISH_PATH;
+                script.onload = () => {
+                    // @ts-ignore
+                    if (typeof Stockfish !== 'undefined') {
+                        // @ts-ignore
+                        Stockfish().then((engine) => {
+                            stockfishEngine = engine;
+                            
+                            // Настраиваем движок
+                            stockfishEngine.postMessage('uci');
+                            stockfishEngine.postMessage('setoption name Threads value 2');
+                            stockfishEngine.postMessage('setoption name Hash value 128');
+                            
+                            console.log('✅ Stockfish готов');
+                            resolve();
+                        }).catch(err => {
+                            console.error('Ошибка загрузки Stockfish:', err);
+                            // Если не получилось, будем работать без движка (DeepSeek сам)
+                            commentaryEl.innerText = '⚠️ Stockfish не загрузился, буду играть своим умом (могу ошибаться)';
+                            resolve();
+                        });
+                    } else {
+                        console.error('Stockfish не найден');
+                        resolve();
+                    }
+                };
+                script.onerror = () => {
+                    console.error('Не удалось загрузить stockfish.js');
+                    commentaryEl.innerText = '⚠️ Stockfish не загрузился, буду играть своим умом (могу ошибаться)';
+                    resolve();
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // ==================== ПОЛУЧЕНИЕ ВАРИАНТОВ ОТ STOCKFISH ====================
+        async function getStockfishSuggestions(fen) {
+            return new Promise((resolve) => {
+                if (!stockfishEngine) {
+                    // Если движок не загружен, возвращаем пустой массив
+                    resolve([]);
+                    return;
+                }
+                
+                const suggestions = [];
+                let isReady = false;
+                
+                // Обработчик сообщений от Stockfish
+                const messageHandler = (event) => {
+                    const line = event.data;
+                    
+                    // Парсим лучшие ходы
+                    if (line.startsWith('info depth') && line.includes(' pv ')) {
+                        // Пример: info depth 20 seldepth 28 multipv 1 score cp 32 nodes ... pv e2e4 e7e5 g1f3
+                        const pvMatch = line.match(/ pv (.+)$/);
+                        if (pvMatch) {
+                            const moves = pvMatch[1].split(' ');
+                            if (moves.length > 0) {
+                                // Конвертируем UCI в объект
+                                const from = moves[0].substring(0, 2);
+                                const to = moves[0].substring(2, 4);
+                                suggestions.push({ from, to, uci: moves[0] });
+                            }
+                        }
+                    }
+                    
+                    // Конец анализа
+                    if (line === 'bestmove (none)' || line.startsWith('bestmove ')) {
+                        stockfishEngine.removeEventListener('message', messageHandler);
+                        resolve(suggestions.slice(0, 3)); // Отдаём до 3 вариантов
+                    }
+                };
+                
+                stockfishEngine.addEventListener('message', messageHandler);
+                
+                // Запрашиваем анализ
+                stockfishEngine.postMessage('stop');
+                stockfishEngine.postMessage('ucinewgame');
+                stockfishEngine.postMessage(`position fen ${fen}`);
+                stockfishEngine.postMessage('go depth 12'); // Анализируем на глубину 12 половин ходов
+                
+                // Таймаут на случай, если движок завис
+                setTimeout(() => {
+                    stockfishEngine.removeEventListener('message', messageHandler);
+                    resolve(suggestions);
+                }, 3000);
+            });
+        }
+        
+        // ==================== ВЫБОР ХОДА ЧЕРЕЗ DEEPSEEK ====================
+        async function getDeepseekMove(fen, suggestions) {
+            if (!apiKey) {
+                commentaryEl.innerText = '❌ Сначала сохрани API-ключ DeepSeek в поле выше!';
+                return null;
+            }
+            
+            // Формируем промпт в зависимости от режима
+            let systemPrompt = '';
+            let userPrompt = '';
+            
+            const isSoulful = currentMode === 'soulful';
+            const gameHistory = game.history({ verbose: true });
+            const lastMove = gameHistory.length > 0 ? gameHistory[gameHistory.length - 1] : null;
+            
+            if (suggestions.length > 0) {
+                // Есть варианты от Stockfish
+                const movesList = suggestions.map((s, i) => {
+                    const move = game.move({ from: s.from, to: s.to, promotion: 'q' });
+                    const san = move ? move.san : `${s.from}-${s.to}`;
+                    game.undo();
+                    return `${i+1}) ${san}`;
+                }).join('\n');
+                
+                userPrompt = `Сейчас позиция в шахматах (FEN: ${fen}).
+Stockfish проанализировал позицию и рекомендует эти ходы (от лучшего к приемлемому):
+${movesList}
+
+Твой ход. Выбери ОДИН из этих ходов. ${isSoulful ? 'Объясни свой выбор коротко, с юмором, по-братски. Можно подкалывать игрока, но дружелюбно.' : 'Просто напиши выбранный ход в формате "e4" или "Nf3", без объяснений.'}
+
+${isSoulful ? 'Формат ответа: сначала ход, потом через дефис комментарий. Например: "e5 - Слабо повторить, БРАТАН?"' : 'Формат ответа: только ход, например "e5"'}`;
+            } else {
+                // Stockfish не доступен — DeepSeek играет сам
+                userPrompt = `Сыграй партию в шахматы. Сейчас твоя очередь (ты играешь ${game.turn() === 'w' ? 'белыми' : 'чёрными'}).
+Текущая позиция (FEN): ${fen}.
+История ходов: ${game.history().join(' ')}.
+Сделай лучший ход. ${isSoulful ? 'Напиши ход и добавь короткий комментарий с юмором, по-братски. Например: "e4 - Начинаем разминку, БРАТАН!"' : 'Напиши только ход, например "e5".'}`;
+            }
+            
+            try {
+                commentaryEl.innerText = '🧠 Думаю, БРАТАН...';
+                
+                const response = await fetch(DEEPSEEK_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: [
+                            { role: 'system', content: isSoulful ? 
+                              'Ты БРАТАН, который играет в шахматы. Ты общаешься по-пацански, с юмором, но в меру. Можешь подкалывать, но не зло. Коротко, ёмко, с душой.' : 
+                              'Ты шахматный движок. Отвечаешь только ходом, без лишних слов.' },
+                            { role: 'user', content: userPrompt }
+                        ],
+                        temperature: isSoulful ? 0.7 : 0.1,
+                        max_tokens: 60
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.choices && data.choices[0]) {
+                    return data.choices[0].message.content.trim();
+                } else {
+                    throw new Error('Нет ответа от API');
+                }
+            } catch (error) {
+                console.error('DeepSeek API error:', error);
+                commentaryEl.innerText = `❌ Ошибка: ${error.message}. Проверь ключ или попробуй позже.`;
+                return null;
+            }
+        }
+        
+        // ==================== ХОД КОМПЬЮТЕРА ====================
+        async function computerMove() {
+            if (isAiThinking) return;
+            if (game.game_over()) {
+                commentaryEl.innerText = '🎉 Игра окончена! Нажми "Новая игра"';
+                return;
+            }
+            if (game.turn() === 'w') return; // Ход белых — пусть игрок ходит
+            
+            isAiThinking = true;
+            
+            try {
+                // 1. Получаем варианты от Stockfish
+                const fen = game.fen();
+                const suggestions = await getStockfishSuggestions(fen);
+                
+                // 2. Спрашиваем DeepSeek
+                const aiResponse = await getDeepseekMove(fen, suggestions);
+                
+                if (!aiResponse) {
+                    isAiThinking = false;
+                    return;
+                }
+                
+                // 3. Парсим ответ
+                let moveStr = aiResponse.trim();
+                let comment = '';
+                
+                // Извлекаем комментарий, если есть (для soulful режима)
+                if (currentMode === 'soulful') {
+                    const dashIndex = moveStr.indexOf('-');
+                    if (dashIndex > 0) {
+                        comment = moveStr.substring(dashIndex + 1).trim();
+                        moveStr = moveStr.substring(0, dashIndex).trim();
+                    }
+                }
+                
+                // Убираем лишние символы
+                moveStr = moveStr.replace(/[^a-h1-8NBRQK]/g, '');
+                
+                // 4. Пробуем сходить
+                let move = game.move(moveStr, { sloppy: true });
+                
+                // Если не получилось, пробуем как UCI (например, "e2e4")
+                if (!move && /^[a-h][1-8][a-h][1-8]$/.test(moveStr)) {
+                    const from = moveStr.substring(0, 2);
+                    const to = moveStr.substring(2, 4);
+                    move = game.move({ from, to, promotion: 'q' });
+                }
+                
+                if (move) {
+                    // Обновляем доску
+                    board.position(game.fen());
+                    
+                    // Обновляем комментарий
+                    if (currentMode === 'soulful') {
+                        commentaryEl.innerText = comment || `👍 Ход: ${move.san}`;
+                    } else {
+                        commentaryEl.innerText = `Мой ход: ${move.san}`;
+                    }
+                    
+                    // Проверяем окончание игры
+                    if (game.game_over()) {
+                        if (game.in_checkmate()) {
+                            commentaryEl.innerText += ' ♔ Шах и мат! Я победил!';
+                        } else if (game.in_stalemate()) {
+                            commentaryEl.innerText += ' 🤝 Пат. Ничья.';
+                        } else if (game.in_threefold_repetition()) {
+                            commentaryEl.innerText += ' 🔁 Троекратное повторение. Ничья.';
+                        } else if (game.insufficient_material()) {
+                            commentaryEl.innerText += ' ♟ Недостаточно материала. Ничья.';
+                        } else {
+                            commentaryEl.innerText += ' 🏁 Игра окончена.';
+                        }
+                    }
+                } else {
+                    commentaryEl.innerText = `❌ Я лоханулся с ходом "${aiResponse}". Твой ход.`;
+                }
+            } catch (e) {
+                console.error(e);
+                commentaryEl.innerText = '❌ Что-то пошло не по плану...';
+            } finally {
+                isAiThinking = false;
+                updateTurnDisplay();
+            }
+        }
+        
+        // ==================== ОБРАБОТКА ХОДА ИГРОКА ====================
+        function onDragStart(source, piece, position, orientation) {
+            // Не даём двигать фигуры, если игра окончена или ход не игрока
+            if (game.game_over()) return false;
+            if (isAiThinking) return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+            return true;
+        }
+        
+        function onDrop(source, target) {
+            if (isAiThinking) return 'snapback';
+            
+            try {
+                // Пробуем сходить
+                const move = game.move({
+                    from: source,
+                    to: target,
+                    promotion: 'q' // Всегда в ферзя для простоты
+                });
+                
+                if (move === null) return 'snapback';
+                
+                // Обновляем доску
+                board.position(game.fen());
+                
+                // Проверяем, не закончилась ли игра
+                if (game.game_over()) {
+                    if (game.in_checkmate()) {
+                        commentaryEl.innerText = '🎉 ТЫ ВЫИГРАЛ, БРАТАН! Поздравляю!';
+                    } else if (game.in_stalemate()) {
+                        commentaryEl.innerText = '🤝 Пат. Ничья. Достойно.';
+                    } else {
+                        commentaryEl.innerText = '🏁 Игра окончена.';
+                    }
+                    updateTurnDisplay();
+                    return;
+                }
+                
+                // Ход компьютера
+                setTimeout(computerMove, 300);
+                updateTurnDisplay();
+                
+            } catch (e) {
+                return 'snapback';
+            }
+        }
+        
+        function onSnapEnd() {
+            board.position(game.fen());
+        }
+        
+        // ==================== ОБНОВЛЕНИЕ ИНДИКАТОРА ХОДА ====================
+        function updateTurnDisplay() {
+            if (game.game_over()) {
+                turnDisplay.innerText = 'Игра окончена';
+                return;
+            }
+            
+            const turn = game.turn() === 'w' ? 'Белые' : 'Чёрные';
+            const isPlayerTurn = game.turn() === 'w';
+            
+            turnDisplay.innerText = isPlayerTurn ? 'Твой ход (белые)' : 'Думаю...';
+            turnDisplay.className = `turn-badge ${game.turn() === 'w' ? '' : 'black-turn'}`;
+        }
+        
+        // ==================== НОВАЯ ИГРА ====================
+        function newGame() {
+            game.reset();
+            board.start();
+            commentaryEl.innerText = currentMode === 'soulful' 
+                ? '🍬 Душевный режим: я комментирую, шучу, но играю честно. Твой ход, БРАТАН!'
+                : '⚡ Честный режим: без разговоров, чистая игра. Твой ход.';
+            updateTurnDisplay();
+        }
+        
+        // ==================== ПЕРЕВЕРНУТЬ ДОСКУ ====================
+        function flipBoard() {
+            board.flip();
+        }
+        
+        // ==================== СОХРАНЕНИЕ API КЛЮЧА ====================
+        function saveApiKey() {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                apiKey = key;
+                localStorage.setItem('deepseek_api_key', key);
+                commentaryEl.innerText = '✅ Ключ сохранён! Можно играть.';
+                apiKeyInput.value = '';
+            } else {
+                alert('Введи ключ!');
+            }
+        }
+        
+        // ==================== ЗАГРУЗКА СОХРАНЁННОГО КЛЮЧА ====================
+        function loadApiKey() {
+            if (apiKey) {
+                apiKeyInput.placeholder = '✓ Ключ сохранён';
+            }
+        }
+        
+        // ==================== ПЕРЕКЛЮЧЕНИЕ РЕЖИМОВ ====================
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('modeSoulful').classList.toggle('active', mode === 'soulful');
+            document.getElementById('modeHonest').classList.toggle('active', mode === 'honest');
+            
+            commentaryEl.innerText = mode === 'soulful' 
+                ? '🍬 Душевный режим: я буду комментировать и шутить. Твой ход!'
+                : '⚡ Честный режим: играем по-взрослому, без лишних слов. Твой ход.';
+        }
+        
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        async function init() {
+            // Загружаем API ключ
+            loadApiKey();
+            
+            // Инициализируем Stockfish
+            await initStockfish();
+            
+            // Настраиваем доску
+            const config = {
+                draggable: true,
+                position: 'start',
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd,
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            };
+            
+            board = Chessboard('board', config);
+            
+            // Подключаем кнопки
+            document.getElementById('newGameBtn').addEventListener('click', newGame);
+            document.getElementById('flipBoardBtn').addEventListener('click', flipBoard);
+            document.getElementById('modeSoulful').addEventListener('click', () => setMode('soulful'));
+            document.getElementById('modeHonest').addEventListener('click', () => setMode('honest'));
+            document.getElementById('saveApiKey').addEventListener('click', saveApiKey);
+            
+            // Стартовый комментарий
+            commentaryEl.innerText = apiKey 
+                ? '🍬 Привет, БРАТАН! Ключ есть, погнали. Твой ход белыми.'
+                : '🔑 Введи DeepSeek API ключ в поле выше и сохрани.';
+            
+            // Устанавливаем режим по умолчанию
+            setMode('soulful');
+            updateTurnDisplay();
+        }
+        
+        // Запускаем после загрузки страницы
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
