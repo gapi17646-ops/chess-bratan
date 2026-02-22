@@ -177,7 +177,8 @@
                 const data = await response.json();
                 if (!data.success) throw new Error(data.error || 'Ошибка сервера');
 
-                const moveStr = data.move.trim(); // ожидаем UCI, например "e2e4"
+                // Очищаем ответ от лишних символов
+                let moveStr = data.move.trim().replace(/[^a-h1-8]/g, '');
                 if (!/^[a-h][1-8][a-h][1-8]$/.test(moveStr)) {
                     throw new Error(`Неверный формат хода: ${moveStr}`);
                 }
