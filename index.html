@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>♟️ БРАТАН CHESS</title>
-    <!-- Встроенная иконка (чтобы не лезть на сервер) -->
+    <!-- Встроенная иконка -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♟️</text></svg>">
     <!-- Библиотеки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
@@ -156,7 +156,11 @@
             5: '👑 Уровень 5: гроссмейстер (выжимаю максимум)'
         };
 
-        async function getMoveFromServer() {
+        async function computerMove() {
+            if (isAiThinking || game.game_over() || game.turn() === 'w') return;
+            isAiThinking = true;
+            commentaryEl.innerText = '🧠 Думаю...';
+
             try {
                 const response = await fetch(SERVER_URL, {
                     method: 'POST',
@@ -168,47 +172,43 @@
                         turn: game.turn()
                     })
                 });
+
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                return data.success ? data.move : null;
+                if (!data.success) throw new Error(data.error || 'Ошибка сервера');
+
+                const moveStr = data.move.trim(); // ожидаем UCI, например "e2e4"
+                if (!/^[a-h][1-8][a-h][1-8]$/.test(moveStr)) {
+                    throw new Error(`Неверный формат хода: ${moveStr}`);
+                }
+
+                const from = moveStr.substring(0, 2);
+                const to = moveStr.substring(2, 4);
+                const move = game.move({ from, to, promotion: 'q' });
+
+                if (move) {
+                    board.position(game.fen());
+                    commentaryEl.innerText = `Мой ход: ${move.san}`;
+                    if (game.game_over()) commentaryEl.innerText += ' 🏁 Игра окончена.';
+                } else {
+                    commentaryEl.innerText = `❌ Ход ${moveStr} не удался. Твой ход.`;
+                }
             } catch (e) {
-                commentaryEl.innerText = `❌ Ошибка: ${e.message}. Сервер не отвечает?`;
-                return null;
+                console.error(e);
+                commentaryEl.innerText = `❌ Ошибка: ${e.message}`;
+            } finally {
+                isAiThinking = false;
+                updateTurnDisplay();
             }
-        }
-
-        async function computerMove() {
-            if (isAiThinking || game.game_over() || game.turn() === 'w') return;
-            isAiThinking = true;
-            commentaryEl.innerText = '🧠 Думаю...';
-            const aiResponse = await getMoveFromServer();
-            if (!aiResponse) { isAiThinking = false; return; }
-
-            let moveStr = aiResponse.trim(), comment = '';
-            const dashIndex = moveStr.indexOf('-');
-            if (dashIndex > 0) { comment = moveStr.substring(dashIndex+1).trim(); moveStr = moveStr.substring(0, dashIndex).trim(); }
-            moveStr = moveStr.replace(/[^a-h1-8NBRQK]/g, '');
-            let move = game.move(moveStr, { sloppy: true });
-            if (!move && /^[a-h][1-8][a-h][1-8]$/.test(moveStr)) {
-                const from = moveStr.substring(0,2), to = moveStr.substring(2,4);
-                move = game.move({ from, to, promotion: 'q' });
-            }
-            if (move) {
-                board.position(game.fen());
-                commentaryEl.innerText = comment && currentDifficulty===3 ? comment : `Мой ход: ${move.san}`;
-                if (game.game_over()) commentaryEl.innerText += ' 🏁 Игра окончена.';
-            } else {
-                commentaryEl.innerText = `❌ Ход "${aiResponse}" не удался. Твой ход.`;
-            }
-            isAiThinking = false;
-            updateTurnDisplay();
         }
 
         function onDragStart(source, piece) {
             if (game.game_over() || isAiThinking) return false;
-            if ((game.turn()==='w' && piece.startsWith('b')) || (game.turn()==='b' && piece.startsWith('w'))) return false;
+            if ((game.turn() === 'w' && piece.startsWith('b')) ||
+                (game.turn() === 'b' && piece.startsWith('w'))) return false;
             return true;
         }
+
         function onDrop(source, target) {
             if (isAiThinking) return 'snapback';
             const move = game.move({ from: source, to: target, promotion: 'q' });
@@ -222,15 +222,22 @@
             setTimeout(computerMove, 300);
             updateTurnDisplay();
         }
+
         function onSnapEnd() { board.position(game.fen()); }
 
         function updateTurnDisplay() {
             if (game.game_over()) turnDisplay.innerText = 'Игра окончена';
             else turnDisplay.innerText = game.turn() === 'w' ? 'Твой ход (белые)' : 'Думаю...';
-            turnDisplay.className = `turn-badge ${game.turn()==='w'?'':'black-turn'}`;
+            turnDisplay.className = `turn-badge ${game.turn() === 'w' ? '' : 'black-turn'}`;
         }
 
-        function newGame() { game.reset(); board.start(); commentaryEl.innerText = getStartMessage(); updateTurnDisplay(); }
+        function newGame() {
+            game.reset();
+            board.start();
+            commentaryEl.innerText = getStartMessage();
+            updateTurnDisplay();
+        }
+
         function getStartMessage() {
             const msgs = {
                 1: '🐣 Уровень 1: полный лапоть. Буду зевать!',
@@ -241,10 +248,14 @@
             };
             return msgs[currentDifficulty] + ' Твой ход, БРАТАН!';
         }
+
         function flipBoard() { board.flip(); }
+
         function setDifficulty(level) {
             currentDifficulty = level;
-            difficultyBtns.forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.level)===level));
+            difficultyBtns.forEach(btn =>
+                btn.classList.toggle('active', parseInt(btn.dataset.level) === level)
+            );
             difficultyDesc.innerText = difficultyDescriptions[level];
             if (!game.game_over()) commentaryEl.innerText = getStartMessage();
         }
@@ -258,11 +269,14 @@
             });
             document.getElementById('newGameBtn').addEventListener('click', newGame);
             document.getElementById('flipBoardBtn').addEventListener('click', flipBoard);
-            difficultyBtns.forEach(btn => btn.addEventListener('click', e => setDifficulty(parseInt(e.target.dataset.level))));
+            difficultyBtns.forEach(btn =>
+                btn.addEventListener('click', e => setDifficulty(parseInt(e.target.dataset.level)))
+            );
             setDifficulty(3);
             updateTurnDisplay();
             commentaryEl.innerText = '✅ Сервер подключён. ' + getStartMessage();
         }
+
         window.addEventListener('load', init);
     </script>
 </body>
