@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>♟️ БРАТАН CHESS</title>
-    <!-- Встроенная иконка -->
+    <title>♟️ БРАТАН CHESS (Локальный Stockfish)</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♟️</text></svg>">
-    <!-- Библиотеки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -31,13 +29,7 @@
             padding: 30px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
         }
-        h1 {
-            text-align: center;
-            margin: 0 0 20px 0;
-            font-size: 32px;
-            color: #ffd966;
-            text-shadow: 2px 2px 4px #000;
-        }
+        h1 { text-align: center; margin: 0 0 20px 0; font-size: 32px; color: #ffd966; text-shadow: 2px 2px 4px #000; }
         h1 span { color: #6c9ebf; }
         .board-container { display: flex; justify-content: center; margin-bottom: 20px; }
         #board { width: 560px; height: 560px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
@@ -116,102 +108,101 @@
 </head>
 <body>
     <div class="game-container">
-        <h1>♟️ БРАТАН <span>CHESS</span> 🍬</h1>
+        <h1>♟️ БРАТАН <span>CHESS</span> 🔥</h1>
         <div class="board-container"><div id="board"></div></div>
         <div class="status-panel">
             <div class="turn-indicator">
                 <div class="turn-badge" id="turnDisplay">Белые ходят</div>
                 <div class="difficulty-selector" id="difficultySelector">
-                    <button class="difficulty-btn" data-level="1">🐣 1</button>
-                    <button class="difficulty-btn" data-level="2">🐥 2</button>
-                    <button class="difficulty-btn" data-level="3">🧐 3</button>
-                    <button class="difficulty-btn" data-level="4">🎓 4</button>
-                    <button class="difficulty-btn" data-level="5">👑 5</button>
+                    <button class="difficulty-btn" data-level="2">🐣 2</button>
+                    <button class="difficulty-btn" data-level="8">🐥 8</button>
+                    <button class="difficulty-btn" data-level="12">🧐 12</button>
+                    <button class="difficulty-btn" data-level="16">🎓 16</button>
+                    <button class="difficulty-btn" data-level="20">👑 20</button>
                 </div>
             </div>
-            <div class="commentary-box" id="commentary">Подключаюсь к серверу...</div>
-            <div id="difficultyDescription" class="difficulty-info">🧐 Уровень 3: любитель (играю в свою силу)</div>
+            <div class="commentary-box" id="commentary">Загружаю движок Stockfish...</div>
+            <div id="difficultyDescription" class="difficulty-info">🧐 Глубина 12: любитель (играю в свою силу)</div>
             <div class="controls">
                 <button id="newGameBtn">🔄 Новая игра</button>
                 <button id="flipBoardBtn" class="secondary">🔄 Перевернуть доску</button>
             </div>
         </div>
-        <div class="footer">Сервер: ProxyAPI + DeepSeek | Тыкай мышкой</div>
+        <div class="footer">Stockfish в браузере | Тыкай мышкой</div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/stockfish.js@0.10.0/stockfish.min.js"></script>
     <script>
         // ========== НАСТРОЙКИ ==========
-        const SERVER_URL = 'https://chess-proxy-server.onrender.com/api/move';
-        let board, game = new Chess(), currentDifficulty = 3, isAiThinking = false;
+        let board, game = new Chess();
+        let engine = null;
+        let isEngineThinking = false;
+        let currentDepth = 12; // Глубина анализа (уровень сложности)
+
         const turnDisplay = document.getElementById('turnDisplay');
         const commentaryEl = document.getElementById('commentary');
         const difficultyBtns = document.querySelectorAll('.difficulty-btn');
         const difficultyDesc = document.getElementById('difficultyDescription');
 
-        const difficultyDescriptions = {
-            1: '🐣 Уровень 1: полный лапоть (буду зевать фигуры)',
-            2: '🐥 Уровень 2: новичок (часто ошибаюсь)',
-            3: '🧐 Уровень 3: любитель (играю в свою силу)',
-            4: '🎓 Уровень 4: профи (почти без ошибок)',
-            5: '👑 Уровень 5: гроссмейстер (выжимаю максимум)'
+        const difficultyNames = {
+            2: '🐣 Глубина 2: полный лапоть',
+            8: '🐥 Глубина 8: новичок',
+            12: '🧐 Глубина 12: любитель',
+            16: '🎓 Глубина 16: профи',
+            20: '👑 Глубина 20: гроссмейстер'
         };
 
-        async function computerMove() {
-            if (isAiThinking || game.game_over() || game.turn() === 'w') return;
-            isAiThinking = true;
-            commentaryEl.innerText = '🧠 Думаю...';
-
-            try {
-                const response = await fetch(SERVER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fen: game.fen(),
-                        history: game.history(),
-                        difficulty: currentDifficulty,
-                        turn: game.turn()
-                    })
-                });
-
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                if (!data.success) throw new Error(data.error || 'Ошибка сервера');
-
-                // Очищаем ответ от лишних символов
-                let moveStr = data.move.trim().replace(/[^a-h1-8]/g, '');
-                if (!/^[a-h][1-8][a-h][1-8]$/.test(moveStr)) {
-                    throw new Error(`Неверный формат хода: ${moveStr}`);
+        // ========== ИНИЦИАЛИЗАЦИЯ STOCKFISH ==========
+        function initEngine() {
+            commentaryEl.innerText = '⏳ Загружаю шахматный движок...';
+            engine = new Stockfish();
+            engine.onmessage = function(event) {
+                const line = event.data;
+                if (line.startsWith('bestmove')) {
+                    const parts = line.split(' ');
+                    const bestMove = parts[1];
+                    if (bestMove && bestMove !== '(none)') {
+                        const from = bestMove.substring(0, 2);
+                        const to = bestMove.substring(2, 4);
+                        const move = game.move({ from, to, promotion: 'q' });
+                        if (move) {
+                            board.position(game.fen());
+                            commentaryEl.innerText = `Мой ход: ${move.san}`;
+                            if (game.game_over()) commentaryEl.innerText += ' 🏁 Игра окончена.';
+                        } else {
+                            commentaryEl.innerText = '❌ Ошибка движка. Твой ход.';
+                        }
+                    }
+                    isEngineThinking = false;
+                    updateTurnDisplay();
                 }
-
-                const from = moveStr.substring(0, 2);
-                const to = moveStr.substring(2, 4);
-                const move = game.move({ from, to, promotion: 'q' });
-
-                if (move) {
-                    board.position(game.fen());
-                    commentaryEl.innerText = `Мой ход: ${move.san}`;
-                    if (game.game_over()) commentaryEl.innerText += ' 🏁 Игра окончена.';
-                } else {
-                    commentaryEl.innerText = `❌ Ход ${moveStr} не удался. Твой ход.`;
-                }
-            } catch (e) {
-                console.error(e);
-                commentaryEl.innerText = `❌ Ошибка: ${e.message}`;
-            } finally {
-                isAiThinking = false;
-                updateTurnDisplay();
-            }
+            };
+            engine.postMessage('uci');
+            engine.postMessage('setoption name Threads value 2');
+            engine.postMessage('setoption name Hash value 128');
+            engine.postMessage('isready');
+            commentaryEl.innerText = '✅ Движок готов. Твой ход, БРАТАН!';
         }
 
+        // ========== ХОД КОМПЬЮТЕРА ==========
+        function computerMove() {
+            if (isEngineThinking || game.game_over() || game.turn() === 'w') return;
+            isEngineThinking = true;
+            commentaryEl.innerText = '🧠 Думаю...';
+            engine.postMessage(`position fen ${game.fen()}`);
+            engine.postMessage(`go depth ${currentDepth}`);
+        }
+
+        // ========== ОБРАБОТКА ХОДА ИГРОКА ==========
         function onDragStart(source, piece) {
-            if (game.game_over() || isAiThinking) return false;
+            if (game.game_over() || isEngineThinking) return false;
             if ((game.turn() === 'w' && piece.startsWith('b')) ||
                 (game.turn() === 'b' && piece.startsWith('w'))) return false;
             return true;
         }
 
         function onDrop(source, target) {
-            if (isAiThinking) return 'snapback';
+            if (isEngineThinking) return 'snapback';
             const move = game.move({ from: source, to: target, promotion: 'q' });
             if (!move) return 'snapback';
             board.position(game.fen());
@@ -220,18 +211,20 @@
                 updateTurnDisplay();
                 return;
             }
-            setTimeout(computerMove, 300);
+            setTimeout(computerMove, 100);
             updateTurnDisplay();
         }
 
         function onSnapEnd() { board.position(game.fen()); }
 
+        // ========== ОБНОВЛЕНИЕ ИНДИКАТОРА ==========
         function updateTurnDisplay() {
             if (game.game_over()) turnDisplay.innerText = 'Игра окончена';
             else turnDisplay.innerText = game.turn() === 'w' ? 'Твой ход (белые)' : 'Думаю...';
             turnDisplay.className = `turn-badge ${game.turn() === 'w' ? '' : 'black-turn'}`;
         }
 
+        // ========== НОВАЯ ИГРА ==========
         function newGame() {
             game.reset();
             board.start();
@@ -240,27 +233,22 @@
         }
 
         function getStartMessage() {
-            const msgs = {
-                1: '🐣 Уровень 1: полный лапоть. Буду зевать!',
-                2: '🐥 Уровень 2: новичок. Могу ошибаться.',
-                3: '🧐 Уровень 3: любитель. Играем в свою силу.',
-                4: '🎓 Уровень 4: профи. Почти не ошибаюсь.',
-                5: '👑 Уровень 5: гроссмейстер. Держись!'
-            };
-            return msgs[currentDifficulty] + ' Твой ход, БРАТАН!';
+            return difficultyNames[currentDepth] + '. Твой ход, БРАТАН!';
         }
 
         function flipBoard() { board.flip(); }
 
-        function setDifficulty(level) {
-            currentDifficulty = level;
+        // ========== УРОВЕНЬ СЛОЖНОСТИ ==========
+        function setDifficulty(depth) {
+            currentDepth = depth;
             difficultyBtns.forEach(btn =>
-                btn.classList.toggle('active', parseInt(btn.dataset.level) === level)
+                btn.classList.toggle('active', parseInt(btn.dataset.level) === depth)
             );
-            difficultyDesc.innerText = difficultyDescriptions[level];
+            difficultyDesc.innerText = difficultyNames[depth];
             if (!game.game_over()) commentaryEl.innerText = getStartMessage();
         }
 
+        // ========== СТАРТ ==========
         function init() {
             board = Chessboard('board', {
                 draggable: true,
@@ -268,14 +256,16 @@
                 onDragStart, onDrop, onSnapEnd,
                 pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
             });
+
             document.getElementById('newGameBtn').addEventListener('click', newGame);
             document.getElementById('flipBoardBtn').addEventListener('click', flipBoard);
             difficultyBtns.forEach(btn =>
                 btn.addEventListener('click', e => setDifficulty(parseInt(e.target.dataset.level)))
             );
-            setDifficulty(3);
+
+            setDifficulty(12);
+            initEngine();
             updateTurnDisplay();
-            commentaryEl.innerText = '✅ Сервер подключён. ' + getStartMessage();
         }
 
         window.addEventListener('load', init);
